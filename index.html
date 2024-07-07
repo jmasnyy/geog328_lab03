@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="utf-8">
+    <title>Earthquake List</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent body scroll */
+        }
+        #map {
+            height: 100vh;
+            width: 100vw;
+        }
+        #side-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.5);
+            z-index: 1; /* Ensure the panel is on top of the map */
+        }
+        #side-panel h2 {
+            margin-top: 0;
+        }
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+            width: 100%;
+            border: 1px solid #ddd;
+        }
+        th, td {
+            text-align: left;
+            padding: 16px;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        button {
+            margin-bottom: 10px;
+        }
+        @media (max-width: 1024px) {
+            #side-panel {
+                display: none;
+            }
+        }
+        #toggle-buttons {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 2;
+        }
+    </style>
+</head> 
+<body>
+    <div id="map"></div>
+    <div id="side-panel">
+        <h2 id="panel-title">Earthquake List</h2>
+        <button id="sort-button" onclick="sortTable()">Sort by Magnitude</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>id</th>
+                    <th>magnitude</th>
+                    <th>date</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Table data will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+    <div id="toggle-buttons">
+        <button onclick="toggleDataset('historic')">California Historic Earthquakes</button>
+        <button onclick="toggleDataset('recent')">Earthquakes Within One Hour</button>
+    </div>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1Ijoiam1hc255eSIsImEiOiJjbHlidjlwd3gxaGJyMmxxM3ZmYnNjamJ5In0.IsofX_qGicjXGVaLNn8Uvw';
+        let map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            zoom: 3.5,
+            center: [-98.5795, 39.8283] // Centered on the United States
+        });
+
+        let currentData = null;
+
+        function toggleDataset(dataset) {
+            const url = dataset === 'historic' ? 'assets/californiaEarthquakes.geojson' : 'assets/onehourEarthquakes.geojson';
+            const title = dataset === 'historic' ? 'California Historic Earthquakes' : 'Earthquakes Within One Hour';
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    currentData = data;
+                    document.getElementById('panel-title').innerText = title;
+                    updateMap();
+                    updateSidebar();
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        function updateMap() {
+            // Remove all existing markers
+            document.querySelectorAll('.mapboxgl-marker').forEach(marker => marker.remove());
+
+            // Add new markers
+            currentData.features.forEach(feature => {
+                new mapboxgl.Marker()
+                    .setLngLat(feature.geometry.coordinates.slice(0, 2))
+                    .addTo(map);
+            });
+        }
+
+        function updateSidebar() {
+            let tbody = document.getElementById('table-body');
+            // Clear existing table rows
+            tbody.innerHTML = '';
+
+            currentData.features.forEach(feature => {
+                let date = new Date(feature.properties.time || `${feature.properties.year}-${feature.properties.month}-${feature.properties.day}`);
+                let row = tbody.insertRow();
+                row.insertCell(0).innerText = feature.id || feature.properties.OBJECTID_1;
+                row.insertCell(1).innerText = feature.properties.mag || feature.properties.magnitude;
+                row.insertCell(2).innerText = date.toLocaleDateString();
+            });
+        }
+
+        function sortTable() {
+            let table = document.getElementById('table-body');
+            let rows = Array.from(table.rows);
+
+            rows.sort((a, b) => {
+                let magA = parseFloat(a.cells[1].innerText);
+                let magB = parseFloat(b.cells[1].innerText);
+                return magB - magA; // Sort descending by magnitude
+            });
+
+            // Clear the table and append sorted rows
+            table.innerHTML = '';
+            rows.forEach(row => table.appendChild(row));
+        }
+
+        // Initial load with California Historic Earthquakes
+        toggleDataset('historic');
+    </script>
+</body>
+</html>
